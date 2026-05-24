@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS agent_group_agents;
+DROP TABLE IF EXISTS agent_groups;
+DROP TABLE IF EXISTS agents;
