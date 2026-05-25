@@ -44,6 +44,7 @@ func Load(path string) (*Config, error) {
 
 	hook := viper.DecodeHook(
 		mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToTimeDurationHookFunc(),
 			mapstructure.TextUnmarshallerHookFunc(),
 		),
 	)

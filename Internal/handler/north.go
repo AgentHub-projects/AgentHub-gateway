@@ -18,7 +18,6 @@ var _ acp.Agent = (*NorthHandler)(nil)
 var _ acp.SessionCreator = (*NorthHandler)(nil)
 var _ acp.SessionLoader = (*NorthHandler)(nil)
 var _ acp.SessionLister = (*NorthHandler)(nil)
-var _ acp.ExtMethodHandler = (*NorthHandler)(nil)
 
 // NorthHandler handles ACP requests from the user side and routes them to the
 // current leader agent connection.
@@ -65,7 +64,6 @@ func (h *NorthHandler) Initialize(ctx context.Context, params *acp.InitializeReq
 
 func (h *NorthHandler) Authenticate(ctx context.Context, params *acp.AuthenticateRequest) (*acp.AuthenticateResponse, error) {
 	panic("to do")
-	return &acp.AuthenticateResponse{}, nil
 }
 
 func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionRequest) (*acp.NewSessionResponse, error) {
@@ -187,60 +185,11 @@ func (h *NorthHandler) Cancel(ctx context.Context, params *acp.CancelNotificatio
 }
 
 func (h *NorthHandler) SetSessionMode(ctx context.Context, params *acp.SetSessionModeRequest) (*acp.SetSessionModeResponse, error) {
-	conn, err := h.creator.FindByNorth(params.SessionID)
-	if err != nil {
-		return nil, err
-	}
-	if conn.LeaderConn == nil {
-		return &acp.SetSessionModeResponse{}, nil
-	}
-
-	params.SessionID = conn.NorthID
-	return conn.LeaderConn.SetSessionMode(ctx, params)
+	return nil, acp.ErrMethodNotFound(acp.AgentMethods.SessionSetMode)
 }
 
 func (h *NorthHandler) SetSessionConfigOption(ctx context.Context, params *acp.SetSessionConfigOptionRequest) (*acp.SetSessionConfigOptionResponse, error) {
-	conn, err := h.creator.FindByNorth(params.SessionID)
-	if err != nil {
-		return nil, err
-	}
-	if conn.LeaderConn == nil {
-		return &acp.SetSessionConfigOptionResponse{}, nil
-	}
-
-	params.SessionID = conn.NorthID
-	return conn.LeaderConn.SetSessionConfigOption(ctx, params)
-}
-
-func (h *NorthHandler) ExtMethod(ctx context.Context, method string, params json.RawMessage) (any, error) {
-	raw := make(map[string]any)
-	if err := json.Unmarshal(params, &raw); err != nil {
-		return nil, err
-	}
-
-	sessionID, _ := raw["sessionId"].(string)
-	if sessionID == "" {
-		return nil, errors.New("missing session id")
-	}
-
-	conn, err := h.creator.FindByNorth(acp.SessionID(sessionID))
-	if err != nil {
-		return nil, err
-	}
-
-	agentConn := conn.LeaderConn
-	if agentID := session.MetaString(raw, session.MetaAgentID); agentID != "" {
-		agentConn, err = h.creator.FindAgentConnection(conn.NorthID, session.AgentID(agentID))
-		if err != nil {
-			return nil, err
-		}
-	}
-	if agentConn == nil {
-		return nil, errors.New("agent connection not established")
-	}
-
-	raw["sessionId"] = string(conn.NorthID)
-	return agentConn.ExtMethod(ctx, method, raw)
+	return nil, acp.ErrMethodNotFound(acp.AgentMethods.SessionSetConfigOption)
 }
 
 func (h *NorthHandler) leaderConn(ctx context.Context, conn *session.Conn, meta map[string]any) (*acp.ClientSideConnection, error) {
