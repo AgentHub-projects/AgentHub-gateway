@@ -32,7 +32,6 @@ var _ acp.ExtMethodHandler = (*SouthHandler)(nil)
 // and permission prompts go north; file and terminal work stays in the sandbox.
 type SouthHandler struct {
 	manager SessionManager
-	store   session.Store
 	logger  *slog.Logger
 	http    *resty.Client
 
@@ -50,10 +49,9 @@ type terminalJob struct {
 	err       error
 }
 
-func NewSouthHandler(ctx context.Context, store session.Store, manager SessionManager) *SouthHandler {
+func NewSouthHandler(ctx context.Context, manager SessionManager) *SouthHandler {
 	return &SouthHandler{
 		manager:   manager,
-		store:     store,
 		logger:    slog.Default().With("component", "south-handler"),
 		http:      resty.New().SetTimeout(180 * time.Second),
 		terminals: make(map[string]*terminalJob),
@@ -67,8 +65,11 @@ func (h *SouthHandler) SessionUpdate(ctx context.Context, params *acp.SessionNot
 	}
 
 	params.SessionID = conn.NorthID
-	if err := h.store.SaveMessage(ctx, conn.NorthID, acp.ClientMethods.SessionUpdate, params); err != nil {
-		h.logger.Warn("persist session update failed", "session", conn.NorthID, "error", err)
+	if agentID := session.AgentIDFromContext(ctx); agentID != "" {
+		if params.Meta == nil {
+			params.Meta = make(map[string]any)
+		}
+		params.Meta[session.MetaAgentID] = string(agentID)
 	}
 
 	return conn.NorthConn.SessionUpdate(ctx, params)

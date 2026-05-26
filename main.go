@@ -77,7 +77,7 @@ func main() {
 
 	manager := session.NewManager(ctx, resolver, &socketio.Connector{})
 	north := handler.NewNorthHandler(ctx, sessionStore, manager)
-	south := handler.NewSouthHandler(ctx, sessionStore, manager)
+	south := handler.NewSouthHandler(ctx, manager)
 	manager.SetHandlers(north, south)
 
 	app := gatewayserver.NewServer(ctx, manager, sessionStore)

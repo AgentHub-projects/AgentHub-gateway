@@ -51,15 +51,3 @@ type Session struct {
 func (Session) TableName() string {
 	return "sessions"
 }
-
-type Message struct {
-	ID        int64          `gorm:"column:id;primaryKey;autoIncrement"`
-	SessionID string         `gorm:"column:session_id;not null"`
-	Kind      string         `gorm:"column:kind;not null"`
-	Payload   datatypes.JSON `gorm:"column:payload;type:jsonb;not null"`
-	CreatedAt time.Time      `gorm:"column:created_at;not null"`
-}
-
-func (Message) TableName() string {
-	return "messages"
-}

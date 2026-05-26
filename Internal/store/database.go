@@ -57,53 +57,6 @@ func (s *DB) CreateSession(ctx context.Context, sessionID acp.SessionID, meta an
 	return nil
 }
 
-// SaveMessage appends a message to a session.
-func (s *DB) SaveMessage(ctx context.Context, sessionID acp.SessionID, kind string, payload any) error {
-	raw, err := marshalJSON(payload)
-	if err != nil {
-		return fmt.Errorf("marshal payload: %w", err)
-	}
-
-	record := &dbmodel.Message{
-		SessionID: string(sessionID),
-		Kind:      normalizeMessageKind(kind),
-		Payload:   raw,
-	}
-	if err := s.client.WithContext(ctx).Create(record).Error; err != nil {
-		return fmt.Errorf("save message: %w", err)
-	}
-
-	return nil
-}
-
-// LoadMessages returns all messages for a session ordered by insert order.
-func (s *DB) LoadMessages(ctx context.Context, sessionID acp.SessionID) ([]dbmodel.Message, error) {
-	var messages []dbmodel.Message
-	if err := s.client.WithContext(ctx).
-		Where("session_id = ?", sessionID).
-		Order("id ASC").
-		Find(&messages).Error; err != nil {
-		return nil, fmt.Errorf("load messages: %w", err)
-	}
-
-	for i := range messages {
-		messages[i].Kind = normalizeMessageKind(messages[i].Kind)
-	}
-
-	return messages, nil
-}
-
-func normalizeMessageKind(kind string) string {
-	switch kind {
-	case "prompt":
-		return acp.AgentMethods.SessionPrompt
-	case "session_update":
-		return acp.ClientMethods.SessionUpdate
-	default:
-		return kind
-	}
-}
-
 // GetSession loads a session by ID.
 func (s *DB) GetSession(ctx context.Context, sessionID acp.SessionID) (*dbmodel.Session, error) {
 	var record dbmodel.Session

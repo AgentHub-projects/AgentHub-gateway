@@ -232,7 +232,7 @@ func (m *Manager) connectAgent(ctx context.Context, sessionID acp.SessionID, age
 			}
 		}()
 
-		if err := agentConn.Start(m.ctx); err != nil && !errors.Is(err, context.Canceled) {
+		if err := agentConn.Start(WithAgentID(m.ctx, agentID)); err != nil && !errors.Is(err, context.Canceled) {
 			slog.Warn("agent connection exited with error", "session", sessionID, "agent", agentID, "error", err)
 		}
 		slog.Info("agent connection closed", "session", sessionID, "agent", agentID)

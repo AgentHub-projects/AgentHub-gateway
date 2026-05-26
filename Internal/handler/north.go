@@ -96,31 +96,7 @@ func (h *NorthHandler) LoadSession(ctx context.Context, params *acp.LoadSessionR
 	}
 
 	sessionID := acp.SessionID(dbSession.SessionID)
-	conn := h.creator.CreateWithID(connection, sessionID)
-
-	records, err := h.store.LoadMessages(ctx, sessionID)
-	if err != nil {
-		h.logger.Error("load messages failed", "session", sessionID, "error", err)
-		return nil, err
-	}
-
-	for _, rec := range records {
-		if rec.Kind != acp.ClientMethods.SessionUpdate {
-			continue
-		}
-
-		var update acp.SessionNotification
-		if err := json.Unmarshal(rec.Payload, &update); err != nil {
-			h.logger.Warn("skip malformed replay message", "session", sessionID, "message", rec.ID, "error", err)
-			continue
-		}
-
-		update.SessionID = sessionID
-		if err := conn.NorthConn.SessionUpdate(ctx, &update); err != nil {
-			h.logger.Error("replay session update failed", "session", sessionID, "message", rec.ID, "error", err)
-			return nil, err
-		}
-	}
+	h.creator.CreateWithID(connection, sessionID)
 
 	return &acp.LoadSessionResponse{}, nil
 }
@@ -147,11 +123,6 @@ func (h *NorthHandler) Prompt(ctx context.Context, params *acp.PromptRequest) (*
 		return nil, err
 	}
 	logger := h.logger.With("session", conn.NorthID)
-
-	if err := h.store.SaveMessage(ctx, conn.NorthID, acp.AgentMethods.SessionPrompt, params); err != nil {
-		logger.Error("persist prompt failed", "error", err)
-		return nil, err
-	}
 
 	leaderConn, err := h.leaderConn(ctx, conn, params.Meta)
 	if err != nil {
