@@ -19,5 +19,5 @@ type SessionCreator interface {
 
 	Create(connection *session.Conn) *session.Conn
 	CreateWithID(connection *session.Conn, id acp.SessionID) *session.Conn
-	ConnectLeader(ctx context.Context, sessionID acp.SessionID, agentID session.AgentID, leaderTemplateSelector, sandboxTemplateSelector string) (*acp.ClientSideConnection, error)
+	ConnectLeader(ctx context.Context, sessionID acp.SessionID, agentID session.AgentID, agentSelector, sandboxSelector string) (*acp.ClientSideConnection, error)
 }

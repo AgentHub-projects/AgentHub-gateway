@@ -14,10 +14,6 @@ type Agent struct {
 	CreatedAt time.Time      `gorm:"column:created_at;not null"`
 }
 
-func (Agent) TableName() string {
-	return "agents"
-}
-
 type AgentGroup struct {
 	ID        string         `gorm:"column:id;primaryKey"`
 	Name      string         `gorm:"column:name;not null"`
@@ -26,17 +22,9 @@ type AgentGroup struct {
 	CreatedAt time.Time      `gorm:"column:created_at;not null"`
 }
 
-func (AgentGroup) TableName() string {
-	return "agent_groups"
-}
-
 type AgentGroupAgent struct {
 	GroupID string `gorm:"column:group_id;primaryKey"`
 	AgentID string `gorm:"column:agent_id;primaryKey"`
-}
-
-func (AgentGroupAgent) TableName() string {
-	return "agent_group_agents"
 }
 
 type Session struct {
@@ -46,8 +34,4 @@ type Session struct {
 	AgentGroupID *string        `gorm:"column:agent_group_id"`
 	Meta         datatypes.JSON `gorm:"column:meta;type:jsonb;not null"`
 	CreatedAt    time.Time      `gorm:"column:created_at;not null"`
-}
-
-func (Session) TableName() string {
-	return "sessions"
 }

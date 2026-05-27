@@ -28,15 +28,18 @@ type Postgres struct {
 }
 
 type Sandbox struct {
-	Selectors    []string      `mapstructure:"selectors"`
-	Port         int           `mapstructure:"port"`
-	Namespace    string        `mapstructure:"namespace"`
-	PollInterval time.Duration `mapstructure:"poll_interval"`
+	AgentSelector   string        `mapstructure:"agentselector"`
+	SandboxSelector string        `mapstructure:"sandboxselector"`
+	Port            int           `mapstructure:"port"`
+	Namespace       string        `mapstructure:"namespace"`
+	PollInterval    time.Duration `mapstructure:"poll_interval"`
 }
 
 func Load(path string) (*Config, error) {
 	cfg := &Config{}
 	viper.SetDefault("server.address", ":8080")
+	viper.SetDefault("sandbox.agentselector", "agent")
+	viper.SetDefault("sandbox.sandboxselector", "sandbox")
 	viper.SetConfigFile(path)
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err

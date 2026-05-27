@@ -2,17 +2,13 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 
 	"gateway/Internal/session"
-	"gateway/pkg/constants"
 
 	acp "github.com/ironpark/go-acp"
 )
-
-const defaultAgentID = "leader"
 
 var _ acp.Agent = (*NorthHandler)(nil)
 var _ acp.SessionCreator = (*NorthHandler)(nil)
@@ -26,19 +22,23 @@ type NorthHandler struct {
 	store   session.Store
 	logger  *slog.Logger
 
-	defaultAgentID          session.AgentID
-	leaderTemplateSelector  string
-	sandboxTemplateSelector string
+	agentSelector   string
+	sandboxSelector string
 }
 
-func NewNorthHandler(ctx context.Context, store session.Store, creator SessionCreator) *NorthHandler {
+func NewNorthHandler(
+	ctx context.Context,
+	store session.Store,
+	creator SessionCreator,
+	agentSelector string,
+	sandboxSelector string,
+) *NorthHandler {
 	return &NorthHandler{
-		creator:                 creator,
-		store:                   store,
-		logger:                  slog.Default().With("component", "north-handler"),
-		defaultAgentID:          session.AgentID(defaultAgentID),
-		leaderTemplateSelector:  constants.AgentLabel,
-		sandboxTemplateSelector: constants.SandboxLabel,
+		creator:         creator,
+		store:           store,
+		logger:          slog.Default().With("component", "north-handler"),
+		agentSelector:   agentSelector,
+		sandboxSelector: sandboxSelector,
 	}
 }
 
@@ -77,7 +77,8 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 	logger := h.logger.With("session", conn.NorthID)
 
 	if err := h.store.CreateSession(ctx, conn.NorthID, meta); err != nil {
-		logger.Warn("persist session failed", "error", err)
+		logger.Error("persist session failed", "error", err)
+		return nil, err
 	}
 
 	return &acp.NewSessionResponse{SessionID: conn.NorthID}, nil
@@ -124,7 +125,7 @@ func (h *NorthHandler) Prompt(ctx context.Context, params *acp.PromptRequest) (*
 	}
 	logger := h.logger.With("session", conn.NorthID)
 
-	leaderConn, err := h.leaderConn(ctx, conn, params.Meta)
+	leaderConn, err := h.leaderConn(ctx, conn)
 	if err != nil {
 		logger.Error("connect leader failed", "error", err)
 		return nil, err
@@ -163,12 +164,12 @@ func (h *NorthHandler) SetSessionConfigOption(ctx context.Context, params *acp.S
 	return nil, acp.ErrMethodNotFound(acp.AgentMethods.SessionSetConfigOption)
 }
 
-func (h *NorthHandler) leaderConn(ctx context.Context, conn *session.Conn, meta map[string]any) (*acp.ClientSideConnection, error) {
+func (h *NorthHandler) leaderConn(ctx context.Context, conn *session.Conn) (*acp.ClientSideConnection, error) {
 	if conn.LeaderConn != nil {
 		return conn.LeaderConn, nil
 	}
 
-	route, err := h.resolveRoute(ctx, conn.NorthID, meta)
+	agentID, err := h.leaderAgentID(ctx, conn.NorthID)
 	if err != nil {
 		return nil, err
 	}
@@ -176,55 +177,19 @@ func (h *NorthHandler) leaderConn(ctx context.Context, conn *session.Conn, meta 
 	return h.creator.ConnectLeader(
 		ctx,
 		conn.NorthID,
-		route.agentID,
-		route.leaderTemplateSelector,
-		route.sandboxTemplateSelector,
+		agentID,
+		h.agentSelector,
+		h.sandboxSelector,
 	)
 }
 
-type route struct {
-	agentID                 session.AgentID
-	leaderTemplateSelector  string
-	sandboxTemplateSelector string
-}
-
-func (h *NorthHandler) resolveRoute(ctx context.Context, sessionID acp.SessionID, meta map[string]any) (route, error) {
-	var r route
-
-	if dbSession, err := h.store.GetSession(ctx, sessionID); err == nil {
-		if dbSession.AgentID != nil {
-			r.agentID = session.AgentID(*dbSession.AgentID)
-		}
-
-		var stored session.Meta
-		if err := json.Unmarshal(dbSession.Meta, &stored); err == nil {
-			r.apply(stored)
-		}
+func (h *NorthHandler) leaderAgentID(ctx context.Context, sessionID acp.SessionID) (session.AgentID, error) {
+	dbSession, err := h.store.GetSession(ctx, sessionID)
+	if err != nil {
+		return "", err
 	}
-
-	r.apply(session.NewMeta("", nil, meta))
-
-	if r.agentID == "" {
-		r.agentID = h.defaultAgentID
+	if dbSession.AgentID == nil || *dbSession.AgentID == "" {
+		return "", acp.ErrInvalidParams(nil, "agentId is required")
 	}
-	if r.leaderTemplateSelector == "" {
-		r.leaderTemplateSelector = h.leaderTemplateSelector
-	}
-	if r.sandboxTemplateSelector == "" {
-		r.sandboxTemplateSelector = h.sandboxTemplateSelector
-	}
-
-	return r, nil
-}
-
-func (r *route) apply(meta session.Meta) {
-	if meta.AgentID != "" {
-		r.agentID = session.AgentID(meta.AgentID)
-	}
-	if meta.LeaderTemplateSelector != "" {
-		r.leaderTemplateSelector = meta.LeaderTemplateSelector
-	}
-	if meta.SandboxTemplateSelector != "" {
-		r.sandboxTemplateSelector = meta.SandboxTemplateSelector
-	}
+	return session.AgentID(*dbSession.AgentID), nil
 }

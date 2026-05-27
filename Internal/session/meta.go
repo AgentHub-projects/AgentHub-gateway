@@ -8,22 +8,18 @@ const (
 
 	DefaultSandboxCwd = "/workspace"
 
-	MetaAgentID                 = "agentId"
-	MetaAgentGroupID            = "agentGroupId"
-	MetaChatType                = "chatType"
-	MetaSandboxCwd              = "sandboxCwd"
-	MetaLeaderTemplateSelector  = "leaderTemplateSelector"
-	MetaSandboxTemplateSelector = "sandboxTemplateSelector"
+	MetaAgentID      = "agentId"
+	MetaAgentGroupID = "agentGroupId"
+	MetaChatType     = "chatType"
+	MetaSandboxCwd   = "sandboxCwd"
 )
 
 type Meta struct {
-	Cwd                     string          `json:"cwd"`
-	MCPServers              []acp.MCPServer `json:"mcpServers,omitempty"`
-	AgentID                 string          `json:"agentId,omitempty"`
-	AgentGroupID            string          `json:"agentGroupId,omitempty"`
-	ChatType                string          `json:"chatType,omitempty"`
-	LeaderTemplateSelector  string          `json:"leaderTemplateSelector,omitempty"`
-	SandboxTemplateSelector string          `json:"sandboxTemplateSelector,omitempty"`
+	Cwd          string          `json:"cwd"`
+	MCPServers   []acp.MCPServer `json:"mcpServers,omitempty"`
+	AgentID      string          `json:"agentId,omitempty"`
+	AgentGroupID string          `json:"agentGroupId,omitempty"`
+	ChatType     string          `json:"chatType,omitempty"`
 }
 
 func NewMeta(cwd string, mcpServers []acp.MCPServer, raw map[string]any) Meta {
@@ -34,13 +30,11 @@ func NewMeta(cwd string, mcpServers []acp.MCPServer, raw map[string]any) Meta {
 	}
 
 	meta := Meta{
-		Cwd:                     cwd,
-		MCPServers:              mcpServers,
-		AgentID:                 MetaString(raw, MetaAgentID),
-		AgentGroupID:            MetaString(raw, MetaAgentGroupID),
-		ChatType:                MetaString(raw, MetaChatType),
-		LeaderTemplateSelector:  MetaString(raw, MetaLeaderTemplateSelector),
-		SandboxTemplateSelector: MetaString(raw, MetaSandboxTemplateSelector),
+		Cwd:          cwd,
+		MCPServers:   mcpServers,
+		AgentID:      MetaString(raw, MetaAgentID),
+		AgentGroupID: MetaString(raw, MetaAgentGroupID),
+		ChatType:     MetaString(raw, MetaChatType),
 	}
 	if meta.ChatType == "" {
 		meta.ChatType = ChatTypeSingle

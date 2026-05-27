@@ -148,13 +148,13 @@ func (m *Manager) ServeNorth(ctx context.Context, tr acp.Transport) error {
 	return northConn.Start(ctx)
 }
 
-func (m *Manager) ConnectLeader(ctx context.Context, sessionID acp.SessionID, agentID AgentID, leaderTemplateSelector, sandboxTemplateSelector string) (*acp.ClientSideConnection, error) {
-	sandboxEndpoint, err := m.resolver.Resolve(m.ctx, sessionID, agentID, sandboxTemplateSelector)
+func (m *Manager) ConnectLeader(ctx context.Context, sessionID acp.SessionID, agentID AgentID, agentSelector, sandboxSelector string) (*acp.ClientSideConnection, error) {
+	sandboxEndpoint, err := m.resolver.Resolve(m.ctx, sessionID, agentID, sandboxSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	agentConn, err := m.ConnectAgent(ctx, sessionID, agentID, leaderTemplateSelector)
+	agentConn, err := m.ConnectAgent(ctx, sessionID, agentID, agentSelector)
 	if err != nil {
 		return nil, err
 	}
