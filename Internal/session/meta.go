@@ -1,6 +1,10 @@
 package session
 
-import acp "github.com/ironpark/go-acp"
+import (
+	"fmt"
+
+	acp "github.com/ironpark/go-acp"
+)
 
 const (
 	ChatTypeSingle = "single"
@@ -10,7 +14,6 @@ const (
 
 	MetaAgentID      = "agentId"
 	MetaAgentGroupID = "agentGroupId"
-	MetaChatType     = "chatType"
 	MetaSandboxCwd   = "sandboxCwd"
 )
 
@@ -19,13 +22,14 @@ type Meta struct {
 	MCPServers   []acp.MCPServer `json:"mcpServers,omitempty"`
 	AgentID      string          `json:"agentId,omitempty"`
 	AgentGroupID string          `json:"agentGroupId,omitempty"`
-	ChatType     string          `json:"chatType,omitempty"`
+	ChatType     string          `json:"chatType"`
 }
 
-func NewMeta(cwd string, mcpServers []acp.MCPServer, raw map[string]any) Meta {
+func NewMeta(cwd string, mcpServers []acp.MCPServer, raw map[string]any) (Meta, error) {
 	if sandboxCwd := MetaString(raw, MetaSandboxCwd); sandboxCwd != "" {
 		cwd = sandboxCwd
-	} else {
+	}
+	if cwd == "" {
 		cwd = DefaultSandboxCwd
 	}
 
@@ -34,15 +38,20 @@ func NewMeta(cwd string, mcpServers []acp.MCPServer, raw map[string]any) Meta {
 		MCPServers:   mcpServers,
 		AgentID:      MetaString(raw, MetaAgentID),
 		AgentGroupID: MetaString(raw, MetaAgentGroupID),
-		ChatType:     MetaString(raw, MetaChatType),
 	}
-	if meta.ChatType == "" {
+
+	switch {
+	case meta.AgentID != "" && meta.AgentGroupID != "":
+		return Meta{}, fmt.Errorf("_meta.%s and _meta.%s are mutually exclusive", MetaAgentID, MetaAgentGroupID)
+	case meta.AgentID != "":
 		meta.ChatType = ChatTypeSingle
-		if meta.AgentGroupID != "" {
-			meta.ChatType = ChatTypeGroup
-		}
+	case meta.AgentGroupID != "":
+		meta.ChatType = ChatTypeGroup
+	default:
+		return Meta{}, fmt.Errorf("_meta.%s or _meta.%s is required", MetaAgentID, MetaAgentGroupID)
 	}
-	return meta
+
+	return meta, nil
 }
 
 func MetaString(raw map[string]any, key string) string {

@@ -17,12 +17,16 @@ var _ acp.ExtMethodHandler = (*SouthHandler)(nil)
 // and permission prompts go north. Workspace tools are intentionally not
 // implemented here; agents must use adaptor-registered sandbox tools instead.
 type SouthHandler struct {
-	manager SessionManager
+	manager         SessionManager
+	agentSelector   string
+	sandboxSelector string
 }
 
-func NewSouthHandler(ctx context.Context, manager SessionManager) *SouthHandler {
+func NewSouthHandler(ctx context.Context, manager SessionManager, agentSelector, sandboxSelector string) *SouthHandler {
 	return &SouthHandler{
-		manager: manager,
+		manager:         manager,
+		agentSelector:   agentSelector,
+		sandboxSelector: sandboxSelector,
 	}
 }
 
@@ -98,7 +102,11 @@ func (h *SouthHandler) ExtMethod(ctx context.Context, method string, params json
 
 	raw["sessionId"] = string(conn.NorthID)
 	if agentID := session.MetaString(raw, session.MetaAgentID); agentID != "" {
-		agentConn, err := h.manager.FindAgentConnection(conn.NorthID, session.AgentID(agentID))
+		targetAgentID := session.AgentID(agentID)
+		agentConn, err := h.manager.FindAgentConnection(conn.NorthID, targetAgentID)
+		if errors.Is(err, session.ErrAgentConnectionNotFound) {
+			agentConn, err = h.manager.ConnectWorker(ctx, conn.NorthID, targetAgentID, h.agentSelector, h.sandboxSelector)
+		}
 		if err != nil {
 			return nil, err
 		}

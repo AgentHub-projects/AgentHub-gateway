@@ -7,14 +7,38 @@ import (
 	"net/url"
 	"time"
 
+	"gateway/Internal/session"
+
 	acp "github.com/ironpark/go-acp"
 	socketclient "github.com/zishang520/socket.io/clients/socket/v3"
+	"resty.dev/v3"
 )
 
 const defaultSocketIOConnectTimeout = 1 * time.Minute
+const defaultAgentInitTimeout = 30 * time.Second
 
 // Connector dials the south agent over Socket.IO.
 type Connector struct{}
+
+func (c *Connector) Init(ctx context.Context, endpoint string, init session.AgentInit) error {
+	initCtx, cancel := context.WithTimeout(ctx, defaultAgentInitTimeout)
+	defer cancel()
+
+	resp, err := resty.New().R().
+		SetContext(initCtx).
+		SetHeader("content-type", "application/json").
+		SetBody(init).
+		Post(agentInitURL(endpoint))
+	if err != nil {
+		return fmt.Errorf("post agent init: %w", err)
+	}
+
+	if resp.IsError() {
+		return fmt.Errorf("post agent init: status %s", resp.Status())
+	}
+
+	return nil
+}
 
 func (c *Connector) Connect(ctx context.Context, endpoint string) (acp.Transport, error) {
 	connectCtx, cancel := context.WithTimeout(ctx, defaultSocketIOConnectTimeout)
@@ -91,5 +115,13 @@ func socketIOEndpointURL(endpoint string) string {
 		Scheme: "http",
 		Host:   endpoint,
 		Path:   SocketIONamespace,
+	}).String()
+}
+
+func agentInitURL(endpoint string) string {
+	return (&url.URL{
+		Scheme: "http",
+		Host:   endpoint,
+		Path:   "/init",
 	}).String()
 }

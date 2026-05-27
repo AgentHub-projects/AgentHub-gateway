@@ -20,6 +20,9 @@ var (
 
 const agentConnectionStartWait = 10 * time.Millisecond
 
+const mockInitAgentType = "codex"
+const mockInitCwd = "/workspace"
+
 // Manager owns the in-memory routing state for north sessions and agent sandboxes.
 //
 // A north connection is transient: when the user disconnects, the north side is
@@ -149,24 +152,75 @@ func (m *Manager) ServeNorth(ctx context.Context, tr acp.Transport) error {
 }
 
 func (m *Manager) ConnectLeader(ctx context.Context, sessionID acp.SessionID, agentID AgentID, agentSelector, sandboxSelector string) (*acp.ClientSideConnection, error) {
+	return m.connectAgentRole(ctx, sessionID, agentID, agentID, AgentRoleLeader, agentSelector, sandboxSelector)
+}
+
+func (m *Manager) ConnectWorker(ctx context.Context, sessionID acp.SessionID, agentID AgentID, agentSelector, sandboxSelector string) (*acp.ClientSideConnection, error) {
+	leaderID, err := m.leaderAgentID(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.connectAgentRole(ctx, sessionID, agentID, leaderID, AgentRoleWorker, agentSelector, sandboxSelector)
+}
+
+func (m *Manager) connectAgentRole(ctx context.Context, sessionID acp.SessionID, agentID, leaderID AgentID, role, agentSelector, sandboxSelector string) (*acp.ClientSideConnection, error) {
 	sandboxEndpoint, err := m.resolver.Resolve(m.ctx, sessionID, agentID, sandboxSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	agentConn, err := m.ConnectAgent(ctx, sessionID, agentID, agentSelector)
+	agentEndpoint, err := m.resolver.Resolve(m.ctx, sessionID, agentID, agentSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := m.connector.Init(ctx, agentEndpoint, agentInit(sessionID, agentID, leaderID, role, sandboxEndpoint)); err != nil {
+		return nil, err
+	}
+
+	agentConn, err := m.connectAgent(ctx, sessionID, agentID, agentEndpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	m.mu.Lock()
-	if conn := m.connByNorth[sessionID]; conn != nil && conn.WorkerConn[agentID] == agentConn {
+	if conn := m.connByNorth[sessionID]; conn != nil && conn.WorkerConn[agentID] == agentConn && role == AgentRoleLeader {
 		conn.LeaderConn = agentConn
 		conn.sandbox = endpoint(sandboxEndpoint)
 	}
 	m.mu.Unlock()
 
 	return agentConn, nil
+}
+
+func (m *Manager) leaderAgentID(sessionID acp.SessionID) (AgentID, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	conn := m.connByNorth[sessionID]
+	if conn == nil {
+		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
+	}
+	for agentID, agentConn := range conn.WorkerConn {
+		if agentConn != nil && agentConn == conn.LeaderConn {
+			return agentID, nil
+		}
+	}
+	return "", errors.New("missing leader agent connection")
+}
+
+func agentInit(sessionID acp.SessionID, agentID, leaderID AgentID, role, sandboxEndpoint string) AgentInit {
+	return AgentInit{
+		AgentType:      mockInitAgentType,
+		Role:           role,
+		AgentID:        string(agentID),
+		LeaderAgentID:  string(leaderID),
+		SessionID:      string(sessionID),
+		Cwd:            mockInitCwd,
+		SandboxAddress: sandboxEndpoint,
+		MCPServers:     []acp.MCPServer{},
+	}
 }
 
 func (m *Manager) ConnectAgent(ctx context.Context, sessionID acp.SessionID, agentID AgentID, templateSelector string) (*acp.ClientSideConnection, error) {

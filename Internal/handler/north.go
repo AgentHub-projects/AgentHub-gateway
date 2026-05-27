@@ -72,7 +72,10 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 		return nil, errors.New("no connection in context")
 	}
 
-	meta := session.NewMeta(params.Cwd, params.MCPServers, params.Meta)
+	meta, err := session.NewMeta(params.Cwd, params.MCPServers, params.Meta)
+	if err != nil {
+		return nil, acp.ErrInvalidParams(nil, err.Error())
+	}
 	conn := h.creator.Create(connection)
 	logger := h.logger.With("session", conn.NorthID)
 
