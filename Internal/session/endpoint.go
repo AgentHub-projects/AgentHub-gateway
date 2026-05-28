@@ -27,7 +27,6 @@ type AgentInit struct {
 	AgentID        string          `json:"agentId"`
 	LeaderAgentID  string          `json:"leaderAgentId"`
 	SessionID      string          `json:"sessionId"`
-	Cwd            string          `json:"cwd"`
 	SandboxAddress string          `json:"sandboxAddress"`
 	SystemPrompt   string          `json:"systemPrompt,omitempty"`
 	MCPServers     []acp.MCPServer `json:"mcpServers"`

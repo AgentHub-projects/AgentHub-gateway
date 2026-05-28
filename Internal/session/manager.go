@@ -20,8 +20,7 @@ var (
 
 const agentConnectionStartWait = 10 * time.Millisecond
 
-const mockInitAgentType = "codex"
-const mockInitCwd = "/workspace"
+const mockInitAgentType = "claude-code"
 
 // Manager owns the in-memory routing state for north sessions and agent sandboxes.
 //
@@ -217,7 +216,6 @@ func agentInit(sessionID acp.SessionID, agentID, leaderID AgentID, role, sandbox
 		AgentID:        string(agentID),
 		LeaderAgentID:  string(leaderID),
 		SessionID:      string(sessionID),
-		Cwd:            mockInitCwd,
 		SandboxAddress: sandboxEndpoint,
 		MCPServers:     []acp.MCPServer{},
 	}

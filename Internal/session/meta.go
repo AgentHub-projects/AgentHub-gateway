@@ -10,31 +10,19 @@ const (
 	ChatTypeSingle = "single"
 	ChatTypeGroup  = "group"
 
-	DefaultSandboxCwd = "/workspace"
-
 	MetaAgentID      = "agentId"
 	MetaAgentGroupID = "agentGroupId"
-	MetaSandboxCwd   = "sandboxCwd"
 )
 
 type Meta struct {
-	Cwd          string          `json:"cwd"`
 	MCPServers   []acp.MCPServer `json:"mcpServers,omitempty"`
 	AgentID      string          `json:"agentId,omitempty"`
 	AgentGroupID string          `json:"agentGroupId,omitempty"`
 	ChatType     string          `json:"chatType"`
 }
 
-func NewMeta(cwd string, mcpServers []acp.MCPServer, raw map[string]any) (Meta, error) {
-	if sandboxCwd := MetaString(raw, MetaSandboxCwd); sandboxCwd != "" {
-		cwd = sandboxCwd
-	}
-	if cwd == "" {
-		cwd = DefaultSandboxCwd
-	}
-
+func NewMeta(mcpServers []acp.MCPServer, raw map[string]any) (Meta, error) {
 	meta := Meta{
-		Cwd:          cwd,
 		MCPServers:   mcpServers,
 		AgentID:      MetaString(raw, MetaAgentID),
 		AgentGroupID: MetaString(raw, MetaAgentGroupID),
