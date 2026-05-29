@@ -164,7 +164,7 @@ func (m *Manager) ConnectWorker(ctx context.Context, sessionID acp.SessionID, ag
 }
 
 func (m *Manager) connectAgentRole(ctx context.Context, sessionID acp.SessionID, agentID, leaderID AgentID, role, agentSelector, sandboxSelector string) (*acp.ClientSideConnection, error) {
-	sandboxEndpoint, err := m.resolver.Resolve(m.ctx, sessionID, agentID, sandboxSelector)
+	sandboxEndpoint, err := m.resolver.Resolve(m.ctx, sessionID, leaderID, sandboxSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -219,15 +219,6 @@ func agentInit(sessionID acp.SessionID, agentID, leaderID AgentID, role, sandbox
 		SandboxAddress: sandboxEndpoint,
 		MCPServers:     []acp.MCPServer{},
 	}
-}
-
-func (m *Manager) ConnectAgent(ctx context.Context, sessionID acp.SessionID, agentID AgentID, templateSelector string) (*acp.ClientSideConnection, error) {
-	address, err := m.resolver.Resolve(m.ctx, sessionID, agentID, templateSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	return m.connectAgent(ctx, sessionID, agentID, address)
 }
 
 func (m *Manager) connectAgent(ctx context.Context, sessionID acp.SessionID, agentID AgentID, address string) (*acp.ClientSideConnection, error) {

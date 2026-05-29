@@ -2,6 +2,8 @@ package sandbox
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"gateway/Internal/session"
@@ -19,14 +21,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	sandboxv1alpha1 "sigs.k8s.io/agent-sandbox/api/v1alpha1"
 	extensionsv1alpha1 "sigs.k8s.io/agent-sandbox/extensions/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const claimRandomSuffixLength = 8
+const claimHashSuffixLength = 12
 
 type Resolver struct {
 	client       client.Client
@@ -65,7 +66,7 @@ func (p *Resolver) Resolve(ctx context.Context, sessionID acp.SessionID, agentID
 	if err != nil {
 		return "", err
 	}
-	claimName := makeClaimName(template.Name)
+	claimName := makeClaimName(template.Name, string(sessionID), string(agentID))
 
 	if err := p.ensureClaim(ctx, string(sessionID), string(agentID), claimName, template.Name); err != nil {
 		return "", err
@@ -125,18 +126,21 @@ func (p *Resolver) Release(ctx context.Context, sessionID acp.SessionID, agentID
 	return errors.Join(errs...)
 }
 
-func makeClaimName(templateName string) string {
+func makeClaimName(templateName, sessionID, agentID string) string {
 	templateName = strings.Trim(templateName, "-")
 	if templateName == "" {
 		templateName = "sandbox"
 	}
 
-	maxPrefixLen := 63 - 1 - claimRandomSuffixLength
+	hash := sha256.Sum256([]byte(strings.Join([]string{templateName, sessionID, agentID}, "\x00")))
+	suffix := hex.EncodeToString(hash[:])[:claimHashSuffixLength]
+
+	maxPrefixLen := 63 - 1 - claimHashSuffixLength
 	if len(templateName) > maxPrefixLen {
 		templateName = strings.Trim(templateName[:maxPrefixLen], "-")
 	}
 
-	return fmt.Sprintf("%s-%s", templateName, utilrand.String(claimRandomSuffixLength))
+	return fmt.Sprintf("%s-%s", templateName, suffix)
 }
 
 func (p *Resolver) resolveTemplate(ctx context.Context, templateSelector labels.Selector) (*extensionsv1alpha1.SandboxTemplate, error) {
