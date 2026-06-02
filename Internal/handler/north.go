@@ -12,14 +12,11 @@ import (
 
 var _ acp.Agent = (*NorthHandler)(nil)
 var _ acp.SessionCreator = (*NorthHandler)(nil)
-var _ acp.SessionLoader = (*NorthHandler)(nil)
-var _ acp.SessionLister = (*NorthHandler)(nil)
 
 // NorthHandler handles ACP requests from the user side and routes them to the
 // current leader agent connection.
 type NorthHandler struct {
 	creator SessionCreator
-	store   session.Store
 	logger  *slog.Logger
 
 	agentSelector   string
@@ -28,14 +25,12 @@ type NorthHandler struct {
 
 func NewNorthHandler(
 	ctx context.Context,
-	store session.Store,
 	creator SessionCreator,
 	agentSelector string,
 	sandboxSelector string,
 ) *NorthHandler {
 	return &NorthHandler{
 		creator:         creator,
-		store:           store,
 		logger:          slog.Default().With("component", "north-handler"),
 		agentSelector:   agentSelector,
 		sandboxSelector: sandboxSelector,
@@ -76,48 +71,12 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 	if err != nil {
 		return nil, acp.ErrInvalidParams(nil, err.Error())
 	}
+	connection.LeaderAgentID = session.AgentID(meta.AgentID)
 	conn := h.creator.Create(connection)
 	logger := h.logger.With("session", conn.NorthID)
-
-	if err := h.store.CreateSession(ctx, conn.NorthID, meta); err != nil {
-		logger.Error("persist session failed", "error", err)
-		return nil, err
-	}
+	logger.Debug("session created", "agent", conn.LeaderAgentID)
 
 	return &acp.NewSessionResponse{SessionID: conn.NorthID}, nil
-}
-
-func (h *NorthHandler) LoadSession(ctx context.Context, params *acp.LoadSessionRequest) (*acp.LoadSessionResponse, error) {
-	connection := session.FromContext(ctx)
-	if connection == nil {
-		return nil, errors.New("no connection in context")
-	}
-
-	dbSession, err := h.store.GetSession(ctx, params.SessionID)
-	if err != nil {
-		h.logger.Error("get session failed", "session", params.SessionID, "error", err)
-		return nil, err
-	}
-
-	sessionID := acp.SessionID(dbSession.SessionID)
-	h.creator.CreateWithID(connection, sessionID)
-
-	return &acp.LoadSessionResponse{}, nil
-}
-
-func (h *NorthHandler) ListSessions(ctx context.Context, params *acp.ListSessionsRequest) (*acp.ListSessionsResponse, error) {
-	ids, err := h.store.ListSessions(ctx)
-	if err != nil {
-		h.logger.Error("list sessions failed", "error", err)
-		return nil, err
-	}
-
-	sessions := make([]acp.SessionInfo, len(ids))
-	for i, id := range ids {
-		sessions[i] = acp.SessionInfo{SessionID: id}
-	}
-
-	return &acp.ListSessionsResponse{Sessions: sessions}, nil
 }
 
 func (h *NorthHandler) Prompt(ctx context.Context, params *acp.PromptRequest) (*acp.PromptResponse, error) {
@@ -187,12 +146,12 @@ func (h *NorthHandler) leaderConn(ctx context.Context, conn *session.Conn) (*acp
 }
 
 func (h *NorthHandler) leaderAgentID(ctx context.Context, sessionID acp.SessionID) (session.AgentID, error) {
-	dbSession, err := h.store.GetSession(ctx, sessionID)
+	conn, err := h.creator.FindByNorth(sessionID)
 	if err != nil {
 		return "", err
 	}
-	if dbSession.AgentID == nil || *dbSession.AgentID == "" {
+	if conn.LeaderAgentID == "" {
 		return "", acp.ErrInvalidParams(nil, "agentId is required")
 	}
-	return session.AgentID(*dbSession.AgentID), nil
+	return conn.LeaderAgentID, nil
 }

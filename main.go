@@ -8,10 +8,8 @@ import (
 	"gateway/Internal/handler"
 	"gateway/Internal/sandbox"
 	"gateway/Internal/session"
-	"gateway/Internal/store"
 	"gateway/Internal/transports/socketio"
 	"gateway/utils/config"
-	"gateway/utils/database"
 	"gateway/utils/log"
 	"log/slog"
 	"net/http"
@@ -44,30 +42,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	dbManager, err := database.NewDBManager(cfg.Postgres)
-	if err != nil {
-		logger.Error("load DB", "error", err)
-		exitCode = 1
-		return
-	}
-	if err := database.RunMigrations(dbManager); err != nil {
-		logger.Error("run migrations", "error", err)
-		exitCode = 1
-		return
-	}
-	sqlDB, err := dbManager.DB()
-	if err != nil {
-		logger.Error("get raw sql DB", "error", err)
-		exitCode = 1
-		return
-	}
-	defer func() {
-		if err := sqlDB.Close(); err != nil {
-			logger.Error("close DB failed", "error", err)
-		}
-	}()
-
-	sessionStore := store.NewDB(dbManager)
 	resolver, err := sandbox.NewEndpointResolver(cfg.Sandbox, nil)
 	if err != nil {
 		logger.Error("create sandbox resolver", "error", err)
@@ -76,11 +50,11 @@ func main() {
 	}
 
 	manager := session.NewManager(ctx, resolver, &socketio.Connector{})
-	north := handler.NewNorthHandler(ctx, sessionStore, manager, cfg.Sandbox.AgentSelector, cfg.Sandbox.SandboxSelector)
+	north := handler.NewNorthHandler(ctx, manager, cfg.Sandbox.AgentSelector, cfg.Sandbox.SandboxSelector)
 	south := handler.NewSouthHandler(ctx, manager, cfg.Sandbox.AgentSelector, cfg.Sandbox.SandboxSelector)
 	manager.SetHandlers(north, south)
 
-	app := gatewayserver.NewServer(ctx, manager, sessionStore)
+	app := gatewayserver.NewServer(ctx, manager)
 	defer func() {
 		if err := app.Close(); err != nil {
 			logger.Error("close gateway failed", "error", err)

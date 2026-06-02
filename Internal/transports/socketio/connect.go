@@ -11,6 +11,7 @@ import (
 
 	acp "github.com/ironpark/go-acp"
 	socketclient "github.com/zishang520/socket.io/clients/socket/v3"
+	"github.com/zishang520/socket.io/v3/pkg/types"
 	"resty.dev/v3"
 )
 
@@ -51,6 +52,7 @@ func (c *Connector) Connect(ctx context.Context, endpoint string) (acp.Transport
 	opts.SetPath(SocketIOPath)
 	opts.SetReconnection(false)
 	opts.SetTimeout(defaultSocketIOConnectTimeout)
+	opts.SetTransports(types.NewSet(socketclient.WebSocket))
 
 	socket, err := socketclient.Connect(socketIOEndpointURL(endpoint), opts)
 	if err != nil {

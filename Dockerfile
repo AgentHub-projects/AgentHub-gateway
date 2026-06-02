@@ -13,7 +13,6 @@ FROM gcr.io/distroless/base-debian12:nonroot
 WORKDIR /app
 
 COPY --from=builder /out/agenthub-gateway /usr/local/bin/agenthub-gateway
-COPY scripts/DB ./scripts/DB
 
 USER nonroot:nonroot
 

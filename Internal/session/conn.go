@@ -10,12 +10,13 @@ type endpoint string
 type AgentID string
 
 type Conn struct {
-	ConnID     string
-	NorthID    acp.SessionID
-	NorthConn  *acp.AgentSideConnection
-	LeaderConn *acp.ClientSideConnection
-	WorkerConn map[AgentID]*acp.ClientSideConnection
-	sandbox    endpoint
+	ConnID        string
+	NorthID       acp.SessionID
+	LeaderAgentID AgentID
+	NorthConn     *acp.AgentSideConnection
+	LeaderConn    *acp.ClientSideConnection
+	WorkerConn    map[AgentID]*acp.ClientSideConnection
+	sandbox       endpoint
 }
 
 func (s *Conn) Close() error {

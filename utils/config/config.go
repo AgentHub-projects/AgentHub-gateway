@@ -12,19 +12,10 @@ type Config struct {
 	Server   Server     `mapstructure:"server"`
 	Sandbox  Sandbox    `mapstructure:"sandbox"`
 	LogLevel slog.Level `mapstructure:"log_level"`
-	Postgres Postgres   `mapstructure:"postgres"`
 }
 
 type Server struct {
 	Address string `mapstructure:"address"`
-}
-
-type Postgres struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	Database string `mapstructure:"database"`
 }
 
 type Sandbox struct {

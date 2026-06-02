@@ -24,10 +24,9 @@ type Server struct {
 	socketServer *socket.Server
 
 	manager *session.Manager
-	store   session.Store
 }
 
-func NewServer(ctx context.Context, manager *session.Manager, store session.Store) *Server {
+func NewServer(ctx context.Context, manager *session.Manager) *Server {
 	rootCtx, cancel := context.WithCancel(ctx)
 	socketServer := socket.NewServer(nil, socket.DefaultServerOptions())
 
@@ -36,7 +35,6 @@ func NewServer(ctx context.Context, manager *session.Manager, store session.Stor
 		cancel:       cancel,
 		socketServer: socketServer,
 		manager:      manager,
-		store:        store,
 	}
 
 	acp := socketServer.Of(socketio.SocketIONamespace, nil)
@@ -94,24 +92,7 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.store == nil {
-		slog.Error("session store not configured")
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	dbSession, err := s.store.GetSession(r.Context(), acp.SessionID(sessionID))
-	if err != nil {
-		if errors.Is(err, session.ErrSessionNotFound) {
-			http.Error(w, "no session found", http.StatusNotFound)
-			return
-		}
-
-		slog.Error("get session failed", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	endpoint, err := s.manager.ResolveSandboxEndpoint(r.Context(), acp.SessionID(dbSession.SessionID))
+	endpoint, err := s.manager.ResolveSandboxEndpoint(r.Context(), acp.SessionID(sessionID))
 	if err != nil {
 		if errors.Is(err, session.ErrSessionNotFound) {
 			http.Error(w, "no session found", http.StatusNotFound)
@@ -139,8 +120,12 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(targetURL)
+			pr.Out.URL.Path = sandboxHTTPPath(pr.In.URL.Path)
+			if pr.In.URL.RawPath != "" {
+				pr.Out.URL.RawPath = sandboxHTTPPath(pr.In.URL.RawPath)
+			}
 			query := pr.Out.URL.Query()
-			query.Set("sessionId", dbSession.SessionID)
+			query.Set("sessionId", sessionID)
 			pr.Out.URL.RawQuery = query.Encode()
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
@@ -150,6 +135,13 @@ func (s *Server) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxy.ServeHTTP(w, r)
+}
+
+func sandboxHTTPPath(path string) string {
+	if strings.HasPrefix(path, "/filesystem/download/") {
+		return strings.TrimPrefix(path, "/filesystem")
+	}
+	return path
 }
 
 func proxyTargetURL(address string) (*url.URL, error) {

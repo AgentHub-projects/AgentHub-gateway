@@ -74,6 +74,9 @@ func (m *Manager) CreateWithID(connection *Conn, id acp.SessionID) *Conn {
 		current.ConnID = connection.ConnID
 		current.NorthID = connection.NorthID
 		current.NorthConn = connection.NorthConn
+		if connection.LeaderAgentID != "" {
+			current.LeaderAgentID = connection.LeaderAgentID
+		}
 		m.connByID[current.ConnID] = current
 		return current
 	}
