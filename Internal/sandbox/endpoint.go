@@ -98,7 +98,7 @@ func (p *Resolver) Resolve(ctx context.Context, sessionID acp.SessionID, agentID
 	return address, nil
 }
 
-func (p *Resolver) Release(ctx context.Context, sessionID acp.SessionID, agentID session.AgentID) error {
+func (p *Resolver) Release(ctx context.Context, sessionID acp.SessionID) error {
 	var claims extensionsv1alpha1.SandboxClaimList
 	if err := p.client.List(
 		ctx,
@@ -106,7 +106,6 @@ func (p *Resolver) Release(ctx context.Context, sessionID acp.SessionID, agentID
 		client.InNamespace(p.namespace),
 		client.MatchingLabels{
 			constants.LabelSessionID: string(sessionID),
-			constants.LabelAgentID:   string(agentID),
 		},
 	); err != nil {
 		return fmt.Errorf("list sandbox claims: %w", err)
@@ -115,12 +114,12 @@ func (p *Resolver) Release(ctx context.Context, sessionID acp.SessionID, agentID
 	var errs []error
 	for i := range claims.Items {
 		claim := &claims.Items[i]
-		slog.Info("delete sandbox claim", "claim", claim.Name, "session", sessionID, "agent", agentID)
+		slog.Info("delete sandbox claim", "claim", claim.Name, "session", sessionID)
 		if err := p.client.Delete(ctx, claim); err != nil && !apierrors.IsNotFound(err) {
 			errs = append(errs, fmt.Errorf("delete sandbox claim %s: %w", claim.Name, err))
 			continue
 		}
-		slog.Info("sandbox claim deleted", "claim", claim.Name, "session", sessionID, "agent", agentID)
+		slog.Info("sandbox claim deleted", "claim", claim.Name, "session", sessionID)
 	}
 
 	return errors.Join(errs...)

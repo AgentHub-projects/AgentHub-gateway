@@ -45,13 +45,9 @@ func (h *NorthHandler) Initialize(ctx context.Context, params *acp.InitializeReq
 			Version: "dev",
 		},
 		AgentCapabilities: &acp.AgentCapabilities{
-			LoadSession: true,
 			MCPCapabilities: &acp.MCPCapabilities{
 				HTTP: true,
 				SSE:  true,
-			},
-			SessionCapabilities: &acp.SessionCapabilities{
-				List: &acp.SessionListCapabilities{},
 			},
 		},
 	}, nil

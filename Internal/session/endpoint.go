@@ -13,7 +13,7 @@ const (
 
 type Resolver interface {
 	Resolve(ctx context.Context, sessionID acp.SessionID, agentID AgentID, templateSelector string) (string, error)
-	Release(ctx context.Context, sessionID acp.SessionID, agentID AgentID) error
+	Release(ctx context.Context, sessionID acp.SessionID) error
 }
 
 type Connector interface {

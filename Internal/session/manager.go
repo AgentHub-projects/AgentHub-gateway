@@ -24,8 +24,9 @@ const mockInitAgentType = "claude-code"
 
 // Manager owns the in-memory routing state for north sessions and agent sandboxes.
 //
-// A north connection is transient: when the user disconnects, the north side is
-// detached but the session entry and agent claims stay alive until Release/Close.
+// A north connection owns the session lifetime. When the user disconnects, all
+// tracked connections are closed and every claim with the session label is
+// released.
 type Manager struct {
 	mu  sync.RWMutex
 	ctx context.Context
@@ -292,48 +293,6 @@ func (m *Manager) connectAgent(ctx context.Context, sessionID acp.SessionID, age
 	return agentConn, nil
 }
 
-// ReleaseByID releases one agent claim under a session.
-func (m *Manager) ReleaseByID(sessionID acp.SessionID, agentID AgentID) error {
-	var agentConn *acp.ClientSideConnection
-
-	m.mu.Lock()
-	if conn := m.connByNorth[sessionID]; conn != nil {
-		agentConn = conn.WorkerConn[agentID]
-		delete(conn.WorkerConn, agentID)
-		if conn.LeaderConn == agentConn {
-			conn.LeaderConn = nil
-		}
-	}
-	m.mu.Unlock()
-
-	var errs []error
-	if agentConn != nil {
-		errs = append(errs, agentConn.Close())
-	}
-	if err := m.resolver.Release(m.ctx, sessionID, agentID); err != nil {
-		errs = append(errs, fmt.Errorf("release agent claim session=%s agent=%s: %w", sessionID, agentID, err))
-	}
-	return errors.Join(errs...)
-}
-
-func (m *Manager) Release(sessionID acp.SessionID) error {
-	m.mu.Lock()
-	conn := m.connByNorth[sessionID]
-	if conn == nil {
-		m.mu.Unlock()
-		return nil
-	}
-
-	delete(m.connByNorth, sessionID)
-	delete(m.connByID, conn.ConnID)
-	agentIDs := connAgentIDs(conn)
-	m.mu.Unlock()
-
-	errs := []error{conn.Close()}
-	errs = append(errs, m.releaseAgents(sessionID, agentIDs)...)
-	return errors.Join(errs...)
-}
-
 // List returns all in-memory north session IDs.
 func (m *Manager) List() []acp.SessionID {
 	m.mu.RLock()
@@ -372,8 +331,7 @@ func (m *Manager) Close() error {
 
 	var errs []error
 	for _, conn := range conns {
-		errs = append(errs, conn.Close())
-		errs = append(errs, m.releaseAgents(conn.NorthID, connAgentIDs(conn))...)
+		errs = append(errs, m.closeAndReleaseSession(conn.NorthID, conn))
 	}
 	return errors.Join(errs...)
 }
@@ -387,17 +345,10 @@ func (m *Manager) closeConnection(connectionID string) error {
 	}
 
 	delete(m.connByID, connectionID)
-	northConn := conn.NorthConn
-	if conn.ConnID == connectionID {
-		conn.ConnID = ""
-		conn.NorthConn = nil
-	}
+	delete(m.connByNorth, conn.NorthID)
 	m.mu.Unlock()
-
-	if northConn != nil {
-		return northConn.Close()
-	}
-	return nil
+	slog.Info("north connection closed, release session claims", "session", conn.NorthID)
+	return m.closeAndReleaseSession(conn.NorthID, conn)
 }
 
 func (m *Manager) clearAgentConnection(sessionID acp.SessionID, agentID AgentID, expected *acp.ClientSideConnection) {
@@ -416,20 +367,6 @@ func (m *Manager) clearAgentConnection(sessionID acp.SessionID, agentID AgentID,
 	}
 }
 
-func (m *Manager) releaseAgents(sessionID acp.SessionID, agentIDs []AgentID) []error {
-	errs := make([]error, 0, len(agentIDs))
-	for _, agentID := range agentIDs {
-		if err := m.resolver.Release(m.ctx, sessionID, agentID); err != nil {
-			errs = append(errs, fmt.Errorf("release agent claim session=%s agent=%s: %w", sessionID, agentID, err))
-		}
-	}
-	return errs
-}
-
-func connAgentIDs(conn *Conn) []AgentID {
-	agentIDs := make([]AgentID, 0, len(conn.WorkerConn))
-	for agentID := range conn.WorkerConn {
-		agentIDs = append(agentIDs, agentID)
-	}
-	return agentIDs
+func (m *Manager) closeAndReleaseSession(sessionID acp.SessionID, conn *Conn) error {
+	return errors.Join(conn.Close(), m.resolver.Release(m.ctx, sessionID))
 }
