@@ -17,7 +17,6 @@ var _ acp.SessionCreator = (*NorthHandler)(nil)
 // current leader agent connection.
 type NorthHandler struct {
 	creator SessionCreator
-	logger  *slog.Logger
 
 	agentSelector   string
 	sandboxSelector string
@@ -31,7 +30,6 @@ func NewNorthHandler(
 ) *NorthHandler {
 	return &NorthHandler{
 		creator:         creator,
-		logger:          slog.Default().With("component", "north-handler"),
 		agentSelector:   agentSelector,
 		sandboxSelector: sandboxSelector,
 	}
@@ -69,8 +67,7 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 	}
 	connection.LeaderAgentID = session.AgentID(meta.AgentID)
 	conn := h.creator.Create(connection)
-	logger := h.logger.With("session", conn.NorthID)
-	logger.Debug("session created", "agent", conn.LeaderAgentID)
+	slog.Debug("session created", "component", "north-handler", "session", conn.NorthID, "agent", conn.LeaderAgentID)
 
 	return &acp.NewSessionResponse{SessionID: conn.NorthID}, nil
 }
@@ -78,21 +75,29 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 func (h *NorthHandler) Prompt(ctx context.Context, params *acp.PromptRequest) (*acp.PromptResponse, error) {
 	conn, err := h.creator.FindByNorth(params.SessionID)
 	if err != nil {
-		h.logger.Error("find session failed", "session", params.SessionID, "error", err)
-		return nil, err
+		meta, err := session.NewMeta(nil, params.Meta)
+		if err != nil {
+			return nil, acp.ErrInvalidParams(nil, err.Error())
+		}
+		connection := session.FromContext(ctx)
+		if connection == nil {
+			return nil, errors.New("no connection in context")
+		}
+		connection.LeaderAgentID = session.AgentID(meta.AgentID)
+		conn = h.creator.CreateWithID(connection, params.SessionID)
+		slog.Debug("session created", "component", "north-handler", "session", conn.NorthID, "agent", conn.LeaderAgentID)
 	}
-	logger := h.logger.With("session", conn.NorthID)
 
 	leaderConn, err := h.leaderConn(ctx, conn)
 	if err != nil {
-		logger.Error("connect leader failed", "error", err)
+		slog.Error("connect leader failed", "component", "north-handler", "session", conn.NorthID, "error", err)
 		return nil, err
 	}
 
 	params.SessionID = conn.NorthID
 	resp, err := leaderConn.Prompt(ctx, params)
 	if err != nil {
-		logger.Error("prompt failed", "error", err)
+		slog.Error("prompt failed", "component", "north-handler", "session", conn.NorthID, "error", err)
 		_ = leaderConn.Close()
 		return nil, err
 	}
@@ -103,7 +108,7 @@ func (h *NorthHandler) Prompt(ctx context.Context, params *acp.PromptRequest) (*
 func (h *NorthHandler) Cancel(ctx context.Context, params *acp.CancelNotification) error {
 	conn, err := h.creator.FindByNorth(params.SessionID)
 	if err != nil {
-		h.logger.Error("find session failed", "session", params.SessionID, "error", err)
+		slog.Error("find session failed", "component", "north-handler", "session", params.SessionID, "error", err)
 		return err
 	}
 	if conn.LeaderConn == nil {
