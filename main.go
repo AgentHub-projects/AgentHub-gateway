@@ -49,9 +49,9 @@ func main() {
 		return
 	}
 
-	manager := session.NewManager(ctx, resolver, &socketio.Connector{})
+	manager := session.NewManager(ctx, resolver, &socketio.Connector{}, cfg.Server.BackendAddress)
 	north := handler.NewNorthHandler(ctx, manager, cfg.Sandbox.AgentSelector, cfg.Sandbox.SandboxSelector)
-	south := handler.NewSouthHandler(ctx, manager, cfg.Sandbox.AgentSelector, cfg.Sandbox.SandboxSelector)
+	south := handler.NewSouthHandler(ctx, manager, cfg.Sandbox.AgentSelector)
 	manager.SetHandlers(north, south)
 
 	app := gatewayserver.NewServer(ctx, manager)
@@ -62,14 +62,14 @@ func main() {
 	}()
 
 	server := &http.Server{
-		Addr:              cfg.Server.Address,
+		Addr:              cfg.Server.GatewayAddress,
 		Handler:           app,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)
 	go func() {
-		logger.Info("gateway server listening", "address", cfg.Server.Address)
+		logger.Info("gateway server listening", "address", cfg.Server.GatewayAddress)
 		serverErr <- server.ListenAndServe()
 	}()
 

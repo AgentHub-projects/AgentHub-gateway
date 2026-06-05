@@ -43,6 +43,7 @@ func (h *NorthHandler) Initialize(ctx context.Context, params *acp.InitializeReq
 			Version: "dev",
 		},
 		AgentCapabilities: &acp.AgentCapabilities{
+			LoadSession: true,
 			MCPCapabilities: &acp.MCPCapabilities{
 				HTTP: true,
 				SSE:  true,
@@ -67,25 +68,40 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 	}
 	connection.LeaderAgentID = session.AgentID(meta.AgentID)
 	conn := h.creator.Create(connection)
+	if err := h.creator.PrepareSandbox(ctx, conn.NorthID, h.sandboxSelector); err != nil {
+		return nil, err
+	}
 	slog.Debug("session created", "component", "north-handler", "session", conn.NorthID, "agent", conn.LeaderAgentID)
 
 	return &acp.NewSessionResponse{SessionID: conn.NorthID}, nil
 }
 
+func (h *NorthHandler) LoadSession(ctx context.Context, params *acp.LoadSessionRequest) (*acp.LoadSessionResponse, error) {
+	connection := session.FromContext(ctx)
+	if connection == nil {
+		return nil, errors.New("no connection in context")
+	}
+
+	conn := h.creator.CreateWithID(connection, params.SessionID)
+	if err := h.creator.PrepareSandbox(ctx, conn.NorthID, h.sandboxSelector); err != nil {
+		return nil, err
+	}
+	slog.Debug("session loaded", "component", "north-handler", "session", conn.NorthID, "agent", conn.LeaderAgentID)
+
+	return &acp.LoadSessionResponse{}, nil
+}
+
 func (h *NorthHandler) Prompt(ctx context.Context, params *acp.PromptRequest) (*acp.PromptResponse, error) {
 	conn, err := h.creator.FindByNorth(params.SessionID)
 	if err != nil {
+		return nil, err
+	}
+	if conn.LeaderAgentID == "" {
 		meta, err := session.NewMeta(nil, params.Meta)
 		if err != nil {
 			return nil, acp.ErrInvalidParams(nil, err.Error())
 		}
-		connection := session.FromContext(ctx)
-		if connection == nil {
-			return nil, errors.New("no connection in context")
-		}
-		connection.LeaderAgentID = session.AgentID(meta.AgentID)
-		conn = h.creator.CreateWithID(connection, params.SessionID)
-		slog.Debug("session created", "component", "north-handler", "session", conn.NorthID, "agent", conn.LeaderAgentID)
+		conn.LeaderAgentID = session.AgentID(meta.AgentID)
 	}
 
 	leaderConn, err := h.leaderConn(ctx, conn)
@@ -142,7 +158,6 @@ func (h *NorthHandler) leaderConn(ctx context.Context, conn *session.Conn) (*acp
 		conn.NorthID,
 		agentID,
 		h.agentSelector,
-		h.sandboxSelector,
 	)
 }
 

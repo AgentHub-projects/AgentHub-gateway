@@ -10,7 +10,6 @@ type endpoint string
 type AgentID string
 
 type Conn struct {
-	ConnID        string
 	NorthID       acp.SessionID
 	LeaderAgentID AgentID
 	NorthConn     *acp.AgentSideConnection

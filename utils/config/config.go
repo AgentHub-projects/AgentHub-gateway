@@ -15,7 +15,8 @@ type Config struct {
 }
 
 type Server struct {
-	Address string `mapstructure:"address"`
+	GatewayAddress string `mapstructure:"gateway_address"`
+	BackendAddress string `mapstructure:"backend_address"`
 }
 
 type Sandbox struct {
@@ -28,7 +29,8 @@ type Sandbox struct {
 
 func Load(path string) (*Config, error) {
 	cfg := &Config{}
-	viper.SetDefault("server.address", ":8080")
+	viper.SetDefault("server.gateway_address", ":8080")
+	viper.SetDefault("server.backend_address", "")
 	viper.SetDefault("sandbox.agentselector", "agent")
 	viper.SetDefault("sandbox.sandboxselector", "sandbox")
 	viper.SetConfigFile(path)
