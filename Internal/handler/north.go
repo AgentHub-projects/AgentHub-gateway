@@ -61,12 +61,6 @@ func (h *NorthHandler) NewSession(ctx context.Context, params *acp.NewSessionReq
 	if connection == nil {
 		return nil, errors.New("no connection in context")
 	}
-
-	meta, err := session.NewMeta(params.MCPServers, params.Meta)
-	if err != nil {
-		return nil, acp.ErrInvalidParams(nil, err.Error())
-	}
-	connection.LeaderAgentID = session.AgentID(meta.AgentID)
 	conn := h.creator.Create(connection)
 	if err := h.creator.PrepareSandbox(ctx, conn.NorthID, h.sandboxSelector); err != nil {
 		return nil, err

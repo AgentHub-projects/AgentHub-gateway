@@ -86,4 +86,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/ironpark/go-acp => github.com/ironpark/acp-go v0.0.0-20260425063135-d173473c2ae1
+replace github.com/ironpark/go-acp => ./third_party/acp-go

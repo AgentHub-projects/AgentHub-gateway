@@ -3,6 +3,7 @@ FROM golang:1.26 AS builder
 WORKDIR /src
 
 COPY go.mod go.sum ./
+COPY third_party/acp-go/go.mod third_party/acp-go/go.sum ./third_party/acp-go/
 RUN go mod download
 
 COPY . .
